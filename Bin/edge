@@ -1,0 +1,185 @@
+#!/usr/bin/env ruby
+require 'inifile'
+require 'active_support'
+require 'active_support/core_ext'
+
+# constant
+VERSION="0.1"
+
+# variable
+$rc = 0
+
+def show_help()
+  puts ("edge: Elastic Dockerfile Generating Environment")
+  puts ("")
+  puts ("=== Usage === ")
+  puts ("* Bin/edge [-h] [-v]")
+  puts ("    -h : show this help message")
+  puts ("    -v : show version")
+  puts ("")
+  puts ("* Bin/edge list")
+  puts ("    show installed project list")
+  puts ("")
+  puts ("* Bin/edge params PROJECT")
+  puts ("    show default parameters of the specified project")
+  puts ("")
+  puts ("* Bin/edge build PROJECT")
+  puts ("    build the specified project")
+  puts ("")
+  puts ("* Bin/edge spec PROJECT")
+  puts ("    test the specified project")
+end
+
+def show_version()
+  puts "edge #{ VERSION }"
+end
+
+def show_projects()
+  system "ls -1 Projects"
+  $rc = $?.to_i
+end
+
+def show_params(project)
+  if File.exists?("Projects/" + project)
+    if File.exists?("Projects/" + project + "/properties/default.ini")
+      File.open("Projects/" + project + "/properties/default.ini") do |file|
+        file.each_line do |line|
+          puts line
+        end
+      end
+    else
+      puts "ERROR: project '#{ project }' doesn't have properties/default.ini"
+      $rc = 1
+    end
+  else
+    puts "ERROR: project '#{ project }' is not found"
+    $rc = 1   
+  end
+end
+
+def reverse_merge_property(property, default)
+  if property != nil
+    property = default.deep_merge(property)
+  elsif default != nil
+    property = default
+  else
+    property = {}
+  end
+  return property
+end
+
+def create_args_str(property)
+  args_str = ""
+  property['args'].each do |key, value|
+    args_str += "--build-arg #{ key }=#{ value } "
+  end
+  return args_str
+end
+
+def exec_build(project)
+  if File.exists?("Projects/" + project)
+    if File.exists?("Projects/" + project + "/Dockerfile")
+      if File.exists?("Projects/" + project + "/properties/default.ini")
+        default = IniFile.load("Projects/" + project + "/properties/default.ini").to_h
+        if File.exists?("Env/#{ project }.ini")
+          property = IniFile.load("Env/#{ project }.ini").to_h
+        end
+        property = reverse_merge_property(property, default)
+        args_str = create_args_str(property)
+        system("docker build -t #{ property['global']['image'] } #{ args_str } Projects/#{ project }")
+        $rc = $?.to_i
+      else
+        puts "ERROR: project '#{ project }' doesn't have properties/default.ini"
+        $rc = 1
+      end
+    else
+      puts "ERROR: project '#{ project }' doesn't have Dockerfile"
+      $rc = 1
+    end
+  else
+    puts "ERROR: project '#{ project }' is not found"
+    $rc = 1
+  end
+end
+
+def exec_spec(project)
+  if File.exists?("Projects/" + project)
+    if File.exists?("Projects/" + project + "/properties")
+      if File.exists?("Projects/" + project + "/Dockerfile")
+        if File.exists?("Projects/" + project + "/properties/default.ini")
+          default = IniFile.load("Projects/" + project + "/properties/default.ini").to_h
+          test_case_files = Dir.glob("Projects/#{ project }/properties/*")
+          tmp_rc = 0
+          test_case_files.each do |test_case_file|
+            test_case = IniFile.load(test_case_file).to_h
+            test_case = reverse_merge_property(test_case, default)
+            args_str = create_args_str(test_case)
+            ENV['TEST_PROJECT'] = project
+            ENV['TEST_IMAGE'] = test_case['global']['image']
+            ENV['TEST_CASE_FILE'] = test_case_file
+            system("docker build -t #{ ENV['TEST_IMAGE'] } #{ args_str } Projects/#{ project }")
+            system("rake -f .Rakefile spec")
+            if $? != 0
+              tmp_rc = 1
+            end
+            system("docker rmi #{ ENV['TEST_IMAGE'] }")
+          end
+          $rc = tmp_rc
+        else
+          puts "ERROR: project '#{ project }' doesn't have properties/default.ini"
+          $rc = 1
+        end
+      else
+        puts "ERROR: project '#{ project }' doesn't have Dockerfile"
+        $rc = 1
+      end
+    else
+      puts "ERROR: project '#{ project }' doesn't have properties dir"
+      $rc = 1
+    end
+  else
+    puts "ERROR: project '#{ project }' is not found"
+    $rc = 1
+  end
+end
+
+def parse(args)
+  arg0 = args.shift
+  arg1 = args.join(" ")
+  case arg0
+  when nil, "-h"
+    show_help()
+  when "-v"
+    show_version()
+  when "list"
+    show_projects()
+  when "params"
+    if arg1 != ""
+      show_params(arg1)
+    else
+      puts("ERROR: project name to print parameters is required")
+      $rc = 1
+    end
+  when "build"
+    if arg1 != ""
+      exec_build(arg1)
+    else
+      puts("ERROR: project name to build is required")
+      $rc = 1
+    end
+  when "spec"
+    if arg1 != ""
+      exec_spec(arg1)
+    else
+      puts("ERROR: project name to test is required")
+      $rc = 1
+    end
+  else
+    puts "ERROR: invalid subcommand #{ arg0 }"
+    $rc = 1
+  end
+end
+
+# main
+parse(ARGV)
+exit $rc
