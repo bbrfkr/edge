@@ -17,7 +17,7 @@ else
   set_property ({}) 
 end
 
-if ENV['DOCKER_TLS_VERIFY'] != 0
+if ENV['DOCKER_TLS_VERIFY'] != 0 && ENV['DOCKER_TLS_VERIFY'] != nil
   if ENV["DOCKER_CERT_PATH"] != nil
     Docker.options = {
         client_cert: File.join(ENV["DOCKER_CERT_PATH"], 'cert.pem'),
