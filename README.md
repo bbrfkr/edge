@@ -100,9 +100,11 @@ After creating properties file, if the file is used when project `[project]` is 
 Each project should have special properties file `default.ini` in directory `Projects/[project]/properties`. the properties of `default.ini` are used as default values when the project is built or tested.
 
 ### write test code
-Write test code according to the syntax of serverspec, then put the test code in the directory `Projects/[project]/spec`, and rename the test code `*_spec.rb`. In the test code, properties described properties file can be called by writing as `property['args']['[key]']`;
+Write test code according to the syntax of serverspec, then put the test code in the directory `Projects/[project]/spec`, and rename the test code `*_spec.rb`. In the test code, describe statement to load `spec_helper`. Moreover, properties described properties file can be called by writing as `property['args']['[key]']`;
 
 ```
+require './.spec_helper'
+
 describe ("check ruby version") do
   describe command("source /root/.bash_profile && rbenv version") do
     its(:stdout) { should match /^#{ property['args']['RUBY_VER'] }\s/ }
