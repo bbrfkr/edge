@@ -47,6 +47,79 @@ $ git clone https://github.com/bbrfkr/edge
          test the specified project
 ```
 
+## quick start
+1. create httpd project
+```
+$ mkdir Projects/httpd
+$ mkdir Projects/httpd/properties
+$ mkdir Projects/httpd/spec
+$ touch Projects/httpd/Dockerfile
+$ touch Projects/httpd/properties/default.ini
+$ touch Projects/httpd/spec/main_spec.rb 
+$ touch Env/httpd.ini
+```
+
+2. describe mock in `Projects/httpd/Dockerfile`
+```
+FROM docker.io/centos:latest
+```
+
+3. describe default image name of httpd project in `Projects/httpd/properties/default.ini`
+```
+image=edge_test/httpd:latest
+[args]
+```
+
+4. describe test code in `Projects/httpd/spec/main_spec.rb`
+```
+require './.spec_helper'
+
+describe ("check httpd package is installed") do
+  describe package("httpd") do
+    it { should be_installed }
+  end
+end
+
+describe ("check httpd process is running") do
+  describe process("httpd") do
+    it { should be_running }
+  end
+end
+```
+
+5. run test and confirm test fails
+```
+$ Bin/edge spec httpd
+```
+
+6. describe implementation in `Projects/httpd/Dockerfile`
+```
+FROM docker.io/centos:latest
+RUN yum install -y httpd
+CMD ["/usr/sbin/httpd", "-DFOREGROUND"]
+```
+
+7. run test and confirm test succeeds
+```
+$ Bin/edge spec httpd
+```
+
+8. describe image name used when image is built in `Env/httpd.ini`
+```
+image=bbrfkr0129/httpd:latest
+[args]
+```
+
+9. build image
+```
+$ Bin/edge build httpd
+```
+
+10. run container from the tested image
+```
+# docker run -d -p 80:80 bbrfkr0129/httpd:latest
+```
+
 ## usage
 
 ### directory architecture
